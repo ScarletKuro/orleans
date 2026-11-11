@@ -539,19 +539,14 @@ namespace Orleans.Transactions.TestKit
             List<ExpectedGrainActivity>[] groupsToRecover;
             if (failureDetection.Kind == TransactionRecoveryFailureObservation.OutcomeKind.StoppedWithoutFailure)
             {
-                if (!gracefulShutdown)
-                {
-                    throw new InvalidOperationException(
-                        $"Transaction production stopped without observing a failure after silo death. "
-                        + $"Shutdown elapsed={shutdownElapsed}, failure detection elapsed={failureDetection.Elapsed}. "
-                        + $"Performed {Volatile.Read(ref index)} transactions on each group.");
-                }
-
+                // Neither mode guarantees a client-visible failure: the in-process kill still publishes the silo's
+                // Stopping and Dead status, so the cluster can move its grains before any transaction fails. Every group
+                // is then probed and validated instead.
                 groupsToRecover = transactionGroups;
                 recoveryEvents.SetRelevantGrains(txGrains.Select(grain => grain.RuntimeGrainId));
                 this.Log(
                     $"Recovery phase=transaction-continuity observed, timestamp={DateTime.UtcNow:O}. "
-                    + "The graceful silo shutdown produced no client-visible transaction failure; "
+                    + $"The {shutdownMode} produced no client-visible transaction failure after {failureDetection.Elapsed}; "
                     + $"all {groupsToRecover.Length} transaction groups will be probed after convergence.");
             }
             else
